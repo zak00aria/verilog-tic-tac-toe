@@ -11,7 +11,7 @@ A work-in-progress tic-tac-toe game written in Verilog and built in the online W
 - [x] Read the up, right, down, left, select, and reset push buttons
     - [x] Add button debouncing
 - [ ] Handle player inputs
-    - [ ] up,right,down,left buttons controlls selected a cell
+    - [x] up,right,down,left buttons controlls selected a cell
     - [ ] select button set selected cell to X or O
 - [ ] Detect wins and draws
 - [ ] Add reset and replay behavior

@@ -117,7 +117,8 @@ module wokwi (
   parameter START = 0, 
             CONFIG_DISPLAY = 1, 
             UPDATE_DISPLAY = 2, 
-            REFRESH_DISPLAY = 3;
+            HANDLE_USER_INPUT = 3, 
+            REFRESH_DISPLAY = 4;
   reg [2:0] MAIN_STATE = START;
   reg [2:0] MAIN_NEXT_STATE = START;
 
@@ -126,6 +127,14 @@ module wokwi (
             DRAW_XO = 2,
             DRAW_SELECTED_CELL = 3;
   reg [1:0] UPDATE_DISPLAY_CURRENT_STEP = CLEAR_DISPLAY;
+
+  parameter ACTION_MOVE_UP = 1,
+            ACTION_MOVE_RIGHT = 2,
+            ACTION_MOVE_DOWN = 3,
+            ACTION_MOVE_LEFT = 4,
+            ACTION_RESET = 5,
+            ACTION_SELECT = 6;
+  reg [2:0] NEXT_ACTION = 0;
 
   reg [1:0] selected_cell_x = 0;
   reg [1:0] selected_cell_y = 0;
@@ -204,9 +213,31 @@ module wokwi (
   always @(posedge CLK_IN) begin
     MAIN_STATE <= MAIN_NEXT_STATE;
     DATA_LINE_STATE <= DATA_LINE_NEXT_STATE;
+
     if(CLK_STATE==CLK_GO_HIGH)begin
       CLK <= 1;
       CLK_STATE <= CLK_GO_LOW;
+    end
+
+    if(NEXT_ACTION==0)begin
+      if(btn_up_state)begin
+        NEXT_ACTION <= ACTION_MOVE_UP;
+      end
+      else if(btn_right_state)begin
+        NEXT_ACTION <= ACTION_MOVE_RIGHT;
+      end
+      else if(btn_down_state)begin
+        NEXT_ACTION <= ACTION_MOVE_DOWN;
+      end
+      else if(btn_left_state)begin
+        NEXT_ACTION <= ACTION_MOVE_LEFT;
+      end
+      else if(btn_select_state)begin
+        NEXT_ACTION <= ACTION_SELECT;
+      end
+      else if(btn_reset_state)begin
+        NEXT_ACTION <= ACTION_RESET;
+      end
     end
   end
 
@@ -267,6 +298,36 @@ module wokwi (
             end
           end
         endcase
+      end
+      HANDLE_USER_INPUT:begin
+        case(NEXT_ACTION)
+          ACTION_MOVE_UP:begin
+            if(selected_cell_y>0)begin
+              selected_cell_y <= selected_cell_y - 1;
+            end
+          end
+          ACTION_MOVE_RIGHT:begin
+            if(selected_cell_x<CHAINED_MATRICES_X_COUNT-1)begin
+              selected_cell_x <= selected_cell_x + 1;
+            end
+          end
+          ACTION_MOVE_DOWN:begin
+            if(selected_cell_y<CHAINED_MATRICES_Y_COUNT-1)begin
+              selected_cell_y <= selected_cell_y + 1;
+            end
+          end
+          ACTION_MOVE_LEFT:begin
+            if(selected_cell_x>0)begin
+              selected_cell_x <= selected_cell_x - 1;
+            end
+          end
+          ACTION_SELECT:begin
+            // TODO: set selected cell value to X or O
+          end
+        endcase
+        NEXT_ACTION<=0;
+        MAIN_NEXT_STATE<=UPDATE_DISPLAY;
+        UPDATE_DISPLAY_CURRENT_STEP<=CLEAR_DISPLAY;
       end
       UPDATE_DISPLAY:begin
         case(UPDATE_DISPLAY_CURRENT_STEP)
@@ -377,7 +438,7 @@ module wokwi (
             data_sent_bits_counter <= 0;
             selected_matrix <= 0;
             if(matrix_data_read_index >= MATRIX_DATA_LENGTH-1)begin
-              MAIN_NEXT_STATE <= UPDATE_DISPLAY;
+              MAIN_NEXT_STATE <= HANDLE_USER_INPUT;
               DATA_LINE_NEXT_STATE <= LINE_IDLE;
             end
             else begin
