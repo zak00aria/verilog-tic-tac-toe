@@ -1,0 +1,24 @@
+{
+  "name": "tic-tac-toe",
+  "author": "zaki zaki",
+  "pins": [
+    "VCC",
+    "GND",
+    "CLK_IN",
+    "btn_up",
+    "btn_right",
+    "btn_left",
+    "btn_down",
+    "btn_select",
+    "btn_reset",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "OUT",
+    "CS",
+    "CLK"
+  ],
+  "controls": []
+}
