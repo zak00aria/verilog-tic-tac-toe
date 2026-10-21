@@ -54,6 +54,33 @@ end
 
 endmodule
 
+module btn_handler(
+  input wire btn,
+  input wire clk,
+  output wire state
+);
+  reg [15:0] timer = 0;
+  reg btn_state = 0;
+
+  assign state = btn_state;
+
+  always @(negedge clk)begin
+    if(timer == 0)begin
+      if(btn)begin
+        timer <= 2000<<2;
+        btn_state <= 1;
+      end
+      else begin
+        btn_state <= 0;
+      end
+    end
+    else if(timer > 0) begin
+      timer <= timer - 1;
+      btn_state <= 0;
+    end
+  end
+endmodule
+
 module wokwi (
   input wire btn_up,
   input wire btn_right,
@@ -135,6 +162,44 @@ module wokwi (
     .shape_id(selected_shape),
     .shape_data(selected_shape_data)
     );
+  
+  // input handlers
+  wire btn_up_state;
+  btn_handler up_btn_handler(
+    .clk(CLK_IN),
+    .btn(btn_up),
+    .state(btn_up_state)
+  );
+  wire btn_right_state;
+  btn_handler right_btn_handler(
+    .clk(CLK_IN),
+    .btn(btn_right),
+    .state(btn_right_state)
+  );
+  wire btn_down_state;
+  btn_handler down_btn_handler(
+    .clk(CLK_IN),
+    .btn(btn_down),
+    .state(btn_down_state)
+  );
+  wire btn_left_state;
+  btn_handler left_btn_handler(
+    .clk(CLK_IN),
+    .btn(btn_left),
+    .state(btn_left_state)
+  );
+  wire btn_select_state;
+  btn_handler select_btn_handler(
+    .clk(CLK_IN),
+    .btn(btn_select),
+    .state(btn_select_state)
+  );
+  wire btn_reset_state;
+  btn_handler reset_btn_handler(
+    .clk(CLK_IN),
+    .btn(btn_reset),
+    .state(btn_reset_state)
+  );
 
   always @(posedge CLK_IN) begin
     MAIN_STATE <= MAIN_NEXT_STATE;
