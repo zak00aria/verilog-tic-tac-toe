@@ -13,5 +13,4 @@ A work-in-progress tic-tac-toe game written in Verilog and built in the online W
 - [ ] Detect wins and draws
 - [ ] Display the board and game status
 - [ ] Add reset and replay behavior
-- [ ] Test the game in Wokwi
 
