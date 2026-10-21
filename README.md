@@ -5,8 +5,8 @@ A work-in-progress tic-tac-toe game written in Verilog and built in the online W
 ## Progress
 
 - [x] Set up the Wokwi simulation
-- [ ] Connect and configure nine chained MAX7219 modules
-    - [ ] Display number of each matrix (1 to 9) for testing
+- [x] Connect and configure nine chained MAX7219 modules
+    - [x] Display number of each matrix (1 to 9) for testing
     - [ ] Display selected cell
 - [ ] Read the up, right, down, left, select, and reset push buttons
     - [ ] Add button debouncing
