@@ -31,7 +31,7 @@
       "left": -345.6,
       "attrs": { "frequency": "20k" }
     },
-    { "type": "chip-test-verilog", "id": "chip1", "top": 77.82, "left": -120, "attrs": {} },
+    { "type": "chip-verilog-tic-tac-toe", "id": "chip1", "top": 77.82, "left": -120, "attrs": {} },
     {
       "type": "wokwi-pushbutton-6mm",
       "id": "btn1",

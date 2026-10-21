@@ -1,3 +1,58 @@
+parameter O_SPRITE = 1, X_SPRITE = 2, SELECTED_CELL_SPRITE = 3;
+
+module sprites(
+  input wire [1:0] shape_id,
+  output wire [8*8-1:0] shape_data
+);
+reg [8*8-1:0] selected_shape_data = 0;
+
+assign shape_data = selected_shape_data;
+
+always @* begin
+    case(shape_id)
+      O_SPRITE:begin
+        selected_shape_data <= {
+          {8'b00000000},
+          {8'b00000000},
+          {8'b00011000},
+          {8'b00100100},
+          {8'b00100100},
+          {8'b00011000},
+          {8'b00000000},
+          {8'b00000000}
+        };
+      end
+      X_SPRITE:begin
+        selected_shape_data <= {
+          {8'b00000000},
+          {8'b00000000},
+          {8'b00100100},
+          {8'b00011000},
+          {8'b00011000},
+          {8'b00100100},
+          {8'b00000000},
+          {8'b00000000}
+        };
+      end
+      SELECTED_CELL_SPRITE:begin
+        selected_shape_data <= {
+          {8'b11111111},
+          {8'b10000001},
+          {8'b10000001},
+          {8'b10000001},
+          {8'b10000001},
+          {8'b10000001},
+          {8'b10000001},
+          {8'b11111111}
+        };
+      end
+      default:begin
+        selected_shape_data <= {16{1'b0}};
+      end
+    endcase
+end
+
+endmodule
 
 module wokwi (
   input wire btn_up,
@@ -17,6 +72,7 @@ module wokwi (
   parameter CHAINED_MATRICES_COUNT = 9;
   parameter CHAINED_MATRICES_X_COUNT = 3;
   parameter CHAINED_MATRICES_Y_COUNT = 3;
+  parameter BLINK_TIMER_SIZE = 14; // in bits
 
   parameter MATRIX_CONFIG_DATA_LENGTH = 8*16;
   parameter MATRIX_DATA_LENGTH = 8*8;
@@ -33,9 +89,20 @@ module wokwi (
 
   parameter START = 0, 
             CONFIG_DISPLAY = 1, 
-            REFRESH_DISPLAY = 2;
+            UPDATE_DISPLAY = 2, 
+            REFRESH_DISPLAY = 3;
   reg [2:0] MAIN_STATE = START;
   reg [2:0] MAIN_NEXT_STATE = START;
+
+  parameter CLEAR_DISPLAY = 0,
+            DRAW_GRID = 1,
+            DRAW_XO = 2,
+            DRAW_SELECTED_CELL = 3;
+  reg [1:0] UPDATE_DISPLAY_CURRENT_STEP = CLEAR_DISPLAY;
+
+  reg [1:0] selected_cell_x = 0;
+  reg [1:0] selected_cell_y = 0;
+  reg [BLINK_TIMER_SIZE-1:0] blink_timer = 0;
 
   reg [4:0] data_sent_bits_counter = 5'd0;
   reg [4:0] max_data_sent_bits = 5'd16;
@@ -60,36 +127,14 @@ module wokwi (
   reg [7:0] selected_matrix_y = CHAINED_MATRICES_Y_COUNT - 1;
 
   
-  reg [MATRIX_DATA_LENGTH*CHAINED_MATRICES_COUNT-1 :0] matrix_data = {
+  reg [MATRIX_DATA_LENGTH*CHAINED_MATRICES_COUNT-1 :0] matrix_data = 0;
 
-    {8'b00111100, 8'b00111100, 8'b00000110},
-    {8'b01100110, 8'b01100110, 8'b00000110},
-    {8'b01100000, 8'b01100110, 8'b00000110},
-    {8'b11111110, 8'b00111100, 8'b00001100},
-    {8'b11100110, 8'b01100110, 8'b00011000},
-    {8'b01100110, 8'b01100110, 8'b00110000},
-    {8'b01100110, 8'b01100110, 8'b01100000},
-    {8'b00111100, 8'b00111100, 8'b01111110},
-
-    {8'b00111100, 8'b00111100, 8'b00110000},
-    {8'b01100110, 8'b01100110, 8'b01111110},
-    {8'b01100110, 8'b01100000, 8'b00110001},
-    {8'b01100110, 8'b01100000, 8'b00110010},
-    {8'b00111110, 8'b00111110, 8'b00110100},
-    {8'b00000110, 8'b00000110, 8'b00111000},
-    {8'b01100110, 8'b00000110, 8'b00110000},
-    {8'b00111100, 8'b01111110, 8'b00110000},
-
-    {8'b00111100, 8'b01111110, 8'b01111110},
-    {8'b01100110, 8'b00000110, 8'b00011000},
-    {8'b01100000, 8'b00001100, 8'b00011000},
-    {8'b01100000, 8'b00011000, 8'b00011000},
-    {8'b00111000, 8'b00110000, 8'b00011000},
-    {8'b01100000, 8'b01100000, 8'b00011000},
-    {8'b01100110, 8'b01100110, 8'b00011100},
-    {8'b00111100, 8'b00111100, 8'b00011000}
-
-};
+  wire [8*8-1:0] selected_shape_data;
+  reg [1:0] selected_shape;
+  sprites u_sprites(
+    .shape_id(selected_shape),
+    .shape_data(selected_shape_data)
+    );
 
   always @(posedge CLK_IN) begin
     MAIN_STATE <= MAIN_NEXT_STATE;
@@ -101,6 +146,7 @@ module wokwi (
   end
 
   always @(negedge CLK_IN) begin
+    blink_timer <= blink_timer+1;
     if(CLK_STATE==CLK_GO_LOW)begin
       CLK <= 0;
     end
@@ -153,6 +199,54 @@ module wokwi (
             end
             else begin
               DATA_LINE_NEXT_STATE <= SENDING;
+            end
+          end
+        endcase
+      end
+      UPDATE_DISPLAY:begin
+        case(UPDATE_DISPLAY_CURRENT_STEP)
+          CLEAR_DISPLAY:begin
+            UPDATE_DISPLAY_CURRENT_STEP<=DRAW_GRID;
+            matrix_data<=0;
+          end
+          DRAW_GRID:begin:draw_grid_block
+            UPDATE_DISPLAY_CURRENT_STEP<=DRAW_XO;
+            /*integer row_index;
+            for(row_index=0;row_index<CHAINED_MATRICES_Y_COUNT*MATRIX_ROWS_COUNT;row_index=row_index+1)begin
+              if(row_index==((row_index>>3)<<3) && row_index>0 && row_index<CHAINED_MATRICES_Y_COUNT*MATRIX_ROWS_COUNT-1)begin
+                matrix_data[(row_index-1)*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT +: CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT] <= {(CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT){1'b1}};
+                matrix_data[row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT +: CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT] <= {(CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT){1'b1}};
+              end
+              else begin
+                matrix_data[MATRIX_COLS_COUNT-1+row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT +: 2] <= {2{1'b1}};
+                matrix_data[MATRIX_COLS_COUNT*2-1+row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT +: 2] <= {2{1'b1}};
+              end
+            end*/
+          end
+          DRAW_XO:begin
+            UPDATE_DISPLAY_CURRENT_STEP<=DRAW_SELECTED_CELL;
+          end
+          DRAW_SELECTED_CELL:begin:draw_selected_cell_block
+            integer row_offset;
+            integer row_index;
+            selected_shape <= SELECTED_CELL_SPRITE;
+            if(selected_shape == SELECTED_CELL_SPRITE)begin
+              MAIN_NEXT_STATE <= REFRESH_DISPLAY;
+              DATA_LINE_NEXT_STATE <= START_SENDING;
+              UPDATE_DISPLAY_CURRENT_STEP <= CLEAR_DISPLAY;
+              for(row_index=0; row_index<MATRIX_ROWS_COUNT; row_index=row_index+1)begin
+                row_offset = (MATRIX_DATA_LENGTH*(CHAINED_MATRICES_X_COUNT*selected_cell_y)) /*screen rows to skip*/
+                            + (MATRIX_COLS_COUNT*selected_cell_x) /*columns to skip (in current row)*/
+                            + (row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT);
+                if(blink_timer < (1<<(BLINK_TIMER_SIZE-2)))begin
+                  matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
+                                                                            & (~selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+                end
+                else begin
+                  matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
+                                                                            | (selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+                end
+              end
             end
           end
         endcase
@@ -218,7 +312,7 @@ module wokwi (
             data_sent_bits_counter <= 0;
             selected_matrix <= 0;
             if(matrix_data_read_index >= MATRIX_DATA_LENGTH-1)begin
-              MAIN_NEXT_STATE <= REFRESH_DISPLAY;
+              MAIN_NEXT_STATE <= UPDATE_DISPLAY;
               DATA_LINE_NEXT_STATE <= LINE_IDLE;
             end
             else begin
