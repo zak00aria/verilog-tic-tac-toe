@@ -87,7 +87,7 @@ module wokwi (
   input wire btn_left,
   input wire btn_down,
   input wire btn_select,
-  input wire btn_reset,
+  input wire btn_restart,
   input wire CLK_IN,
   output reg OUT,
   output reg CS,
@@ -132,7 +132,7 @@ module wokwi (
             ACTION_MOVE_RIGHT = 2,
             ACTION_MOVE_DOWN = 3,
             ACTION_MOVE_LEFT = 4,
-            ACTION_RESET = 5,
+            ACTION_RESTART = 5,
             ACTION_SELECT = 6;
   reg [2:0] NEXT_ACTION = 0;
 
@@ -157,7 +157,7 @@ module wokwi (
     {8'h0f, 8'h00}, // disable display test
     {8'h0c, 8'h01}, // normal operation
     {8'h00, 8'h00}, // nothing, just to have a small delay
-    {8'h00, 8'h00} // nothing, just to have a small delay
+    {8'h00, 8'h00}  // nothing, just to have a small delay
   };
 
   reg [7:0] matrix_data_read_index = 8'd0;
@@ -210,11 +210,11 @@ module wokwi (
     .btn(btn_select),
     .state(btn_select_state)
   );
-  wire btn_reset_state;
-  btn_handler reset_btn_handler(
+  wire btn_restart_state;
+  btn_handler restart_btn_handler(
     .clk(CLK_IN),
-    .btn(btn_reset),
-    .state(btn_reset_state)
+    .btn(btn_restart),
+    .state(btn_restart_state)
   );
 
   always @(posedge CLK_IN) 
@@ -241,6 +241,9 @@ module wokwi (
       end
       else if(btn_select_state)begin
         NEXT_ACTION <= ACTION_SELECT;
+      end
+      else if(btn_restart_state)begin
+        NEXT_ACTION <= ACTION_RESTART;
       end
     end
 
@@ -342,6 +345,17 @@ module wokwi (
               endcase
               current_turn <= current_turn ^ 1;
             end
+          end
+          ACTION_RESTART:begin
+            // reset current turn to X
+            current_turn <= 0;
+            // clear screen
+            matrix_data <= 0;
+            // clear board cells
+            board_state <= 0;
+            // reset selected cell
+            selected_cell_x <= 0;
+            selected_cell_y <= 0;
           end
         endcase
         NEXT_ACTION<=0;

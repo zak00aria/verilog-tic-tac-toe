@@ -10,10 +10,10 @@ A work-in-progress tic-tac-toe game written in Verilog and built in the online W
     - [x] Highlight selected cell
 - [x] Read the up, right, down, left, select, and reset push buttons
     - [x] Add button debouncing
-- [ ] Handle player inputs
+- [x] Handle player inputs
     - [x] up,right,down,left buttons controlls selected cell
     - [x] Pressing the Select button sets the selected cell’s value to either X or O
-    - [ ] Handle restart button
+    - [x] Handle restart button
 - [ ] Detect wins
 - [ ] Implement infinite Tic-Tac-Toe
     - [ ] After a player has made 3 moves, remove their oldest move when they make their next move
