@@ -136,9 +136,12 @@ module wokwi (
             ACTION_SELECT = 6;
   reg [2:0] NEXT_ACTION = 0;
 
+  reg current_turn = 0;
   reg [1:0] selected_cell_x = 0;
   reg [1:0] selected_cell_y = 0;
   reg [BLINK_TIMER_SIZE-1:0] blink_timer = 0;
+  reg [1:0] draw_xo_selected_cell_x = 0;
+  reg [1:0] draw_xo_selected_cell_y = 0;
 
   reg [4:0] data_sent_bits_counter = 5'd0;
   reg [4:0] max_data_sent_bits = 5'd16;
@@ -164,6 +167,11 @@ module wokwi (
 
   
   reg [MATRIX_DATA_LENGTH*CHAINED_MATRICES_COUNT-1 :0] matrix_data = 0;
+  reg [3*3*2-1:0] board_state = {
+    2'b00, 2'b00, 2'b00,
+    2'b00, 2'b00, 2'b00,
+    2'b00, 2'b00, 2'b00
+  };
 
   wire [8*8-1:0] selected_shape_data;
   reg [1:0] selected_shape;
@@ -172,7 +180,6 @@ module wokwi (
     .shape_data(selected_shape_data)
     );
   
-  // input handlers
   wire btn_up_state;
   btn_handler up_btn_handler(
     .clk(CLK_IN),
@@ -210,15 +217,15 @@ module wokwi (
     .state(btn_reset_state)
   );
 
-  always @(posedge CLK_IN) begin
+  always @(posedge CLK_IN) 
+  begin
     MAIN_STATE <= MAIN_NEXT_STATE;
     DATA_LINE_STATE <= DATA_LINE_NEXT_STATE;
-
     if(CLK_STATE==CLK_GO_HIGH)begin
       CLK <= 1;
       CLK_STATE <= CLK_GO_LOW;
     end
-
+    
     if(NEXT_ACTION==0)begin
       if(btn_up_state)begin
         NEXT_ACTION <= ACTION_MOVE_UP;
@@ -235,10 +242,8 @@ module wokwi (
       else if(btn_select_state)begin
         NEXT_ACTION <= ACTION_SELECT;
       end
-      else if(btn_reset_state)begin
-        NEXT_ACTION <= ACTION_RESET;
-      end
     end
+
   end
 
   always @(negedge CLK_IN) begin
@@ -299,7 +304,8 @@ module wokwi (
           end
         endcase
       end
-      HANDLE_USER_INPUT:begin
+      HANDLE_USER_INPUT:begin:handle_user_inputs_block
+        integer cell_index, cell_value;
         case(NEXT_ACTION)
           ACTION_MOVE_UP:begin
             if(selected_cell_y>0)begin
@@ -322,7 +328,20 @@ module wokwi (
             end
           end
           ACTION_SELECT:begin
-            // TODO: set selected cell value to X or O
+            cell_index = selected_cell_y*3*2
+                          +2*selected_cell_x;
+            cell_value = board_state[cell_index +: 2];
+            if(cell_value==0)begin
+              case(current_turn)
+                0:begin
+                  board_state[cell_index +: 2] = X_SPRITE;
+                end
+                1:begin
+                  board_state[cell_index +: 2] = O_SPRITE;
+                end
+              endcase
+              current_turn <= current_turn ^ 1;
+            end
           end
         endcase
         NEXT_ACTION<=0;
@@ -349,8 +368,36 @@ module wokwi (
               end
             end*/
           end
-          DRAW_XO:begin
-            UPDATE_DISPLAY_CURRENT_STEP<=DRAW_SELECTED_CELL;
+          DRAW_XO:begin:draw_x_o_block
+            integer cell_value;
+            integer row_offset;
+            integer row_index;
+            if(draw_xo_selected_cell_y<=2)begin
+              cell_value = board_state[draw_xo_selected_cell_y*3*2
+                                      +2*draw_xo_selected_cell_x +: 2];
+              selected_shape <= cell_value;
+              if(cell_value==selected_shape)begin
+                for(row_index=0; row_index<MATRIX_ROWS_COUNT; row_index=row_index+1)begin
+                  row_offset = (MATRIX_DATA_LENGTH*(CHAINED_MATRICES_X_COUNT*draw_xo_selected_cell_y)) /*screen rows to skip*/
+                              + (MATRIX_COLS_COUNT*draw_xo_selected_cell_x) /*columns to skip (in current row)*/
+                              + (row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT);
+                  matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
+                                                                  | (selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+                end
+                if(draw_xo_selected_cell_x<2)begin
+                  draw_xo_selected_cell_x <= draw_xo_selected_cell_x+1;
+                end
+                else begin
+                  draw_xo_selected_cell_x <= 0;
+                  draw_xo_selected_cell_y <= draw_xo_selected_cell_y+1;
+                end
+              end
+            end
+            else begin
+              draw_xo_selected_cell_x <= 0;
+              draw_xo_selected_cell_y <= 0;
+              UPDATE_DISPLAY_CURRENT_STEP<=DRAW_SELECTED_CELL;
+            end
           end
           DRAW_SELECTED_CELL:begin:draw_selected_cell_block
             integer row_offset;
