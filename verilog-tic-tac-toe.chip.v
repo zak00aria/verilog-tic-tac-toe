@@ -1,3 +1,4 @@
+parameter CLK_SPEED = 20*1000;// Hz
 parameter O_SPRITE = 1, 
           X_SPRITE = 2, 
           SELECTED_CELL_SPRITE = 3;
@@ -75,7 +76,7 @@ module btn_handler(
   always @(negedge clk)begin
     if(timer == 0)begin
       if(btn)begin
-        timer <= 2000<<2;
+        timer <= CLK_SPEED/10*2;// we need a delay of about 200ms 
         btn_state <= 1;
       end
       else begin
@@ -89,13 +90,14 @@ module btn_handler(
   end
 endmodule
 
+parameter winning_line_length = 3;
+parameter possible_winning_lines_count = 8;
 module win_checker(
   input wire [3*3*2-1:0] board_state,
-  output wire [1:0] winner
+  output wire [1:0] winner,
+  output wire [(winning_line_length*2*2)-1:0] winning_line
 );
-  parameter size_t = 3;
-  parameter winning_line_length = 3;
-  parameter possible_winning_lines_count = 8;
+  parameter size_t = 2;
 
   reg [possible_winning_lines_count*(winning_line_length*size_t*2)-1:0] possible_winning_lines = {
           // x       // y         // x       // y         // x       // y
@@ -111,7 +113,9 @@ module win_checker(
 
   reg [1:0] result = 0;
   reg [(winning_line_length*size_t*2)-1:0] winning_line_cells = 0;
+  
   assign winner = result;
+  assign winning_line = winning_line_cells;
 
   function three_in_row_check;
     input [(winning_line_length*size_t*2)-1:0] line_cells_xy;
@@ -135,10 +139,21 @@ module win_checker(
       line_start_index = i * winning_line_length*(size_t*2);
       if(three_in_row_check(possible_winning_lines[line_start_index+:winning_line_length*(size_t*2)]))begin
         result <= board_state[(possible_winning_lines[line_start_index+0*size_t+:size_t]*BOARD_STATE_COLS_COUNT+possible_winning_lines[line_start_index+1*size_t+:size_t])*BOARD_STATE_CELL_SIZE+:BOARD_STATE_CELL_SIZE];
+        winning_line_cells <= possible_winning_lines[line_start_index +:winning_line_length*(size_t*2)];
       end
     end
   end
 endmodule
+
+function does_cell_belong_to_winning_line;
+  input [2*2-1:0] cell_xy;
+  input [winning_line_length*2*2-1:0] winning_line;
+  begin
+    does_cell_belong_to_winning_line = cell_xy==winning_line[0*2*2 +:2*2]
+                                        || cell_xy==winning_line[1*2*2 +:2*2]
+                                        || cell_xy==winning_line[2*2*2 +:2*2];
+  end
+endfunction
 
 module wokwi (
   input wire btn_up,
@@ -226,6 +241,7 @@ module wokwi (
   reg [7:0] selected_matrix_x = 0;
   reg [7:0] selected_matrix_y = CHAINED_MATRICES_Y_COUNT - 1;
 
+  wire [winning_line_length*2*2-1:0] winning_line;
   wire end_game;
   assign end_game = o_won || x_won;
   
@@ -282,7 +298,8 @@ module wokwi (
 
   win_checker u_win_checker(
     .board_state(board_state),
-    .winner({x_won, o_won})
+    .winner({x_won, o_won}),
+    .winning_line(winning_line)
   );
 
   always @(posedge CLK_IN) 
@@ -465,8 +482,17 @@ module wokwi (
                   row_offset = (MATRIX_DATA_LENGTH*(CHAINED_MATRICES_X_COUNT*draw_xo_selected_cell_y)) /*screen rows to skip*/
                               + (MATRIX_COLS_COUNT*draw_xo_selected_cell_x) /*columns to skip (in current row)*/
                               + (row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT);
-                  matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
-                                                                  | (selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+                  if(end_game
+                     && does_cell_belong_to_winning_line({draw_xo_selected_cell_x, draw_xo_selected_cell_y}, winning_line) 
+                     && blink_timer < (1<<(BLINK_TIMER_SIZE-2))
+                  )begin
+                    matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
+                                                                    & ~(selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+                  end
+                  else begin
+                    matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
+                                                                    | (selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+                  end
                 end
                 if(draw_xo_selected_cell_x<2)begin
                   draw_xo_selected_cell_x <= draw_xo_selected_cell_x+1;

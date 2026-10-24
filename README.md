@@ -14,13 +14,13 @@ A work-in-progress tic-tac-toe game written in Verilog and built in the online W
     - [x] up,right,down,left buttons controlls selected cell
     - [x] Pressing the Select button sets the selected cell’s value to either X or O
     - [x] Handle restart button
-- [ ] Detect win state
+- [x] Detect win state
     - [x] Determine whether X or O won
     - [x] Ignore all inputs, allow only a game restart
-    - [ ] Highlight the winning line (by making it blink)
+    - [x] Highlight the winning line (by making it blink)
 - [ ] Implement infinite Tic-Tac-Toe
     - [ ] After a player has made 3 moves, remove their oldest move when they make their next move
-    - [ ] Add a blinking visual effect to the cell that will be removed on the next turn
+    - [ ] Add a blinking visual effect to the cell that will be removed in the next turn
 
 ## Simulation
 
