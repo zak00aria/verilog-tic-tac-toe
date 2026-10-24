@@ -1,4 +1,12 @@
-parameter O_SPRITE = 1, X_SPRITE = 2, SELECTED_CELL_SPRITE = 3;
+parameter O_SPRITE = 1, 
+          X_SPRITE = 2, 
+          SELECTED_CELL_SPRITE = 3;
+parameter BOARD_STATE_CELL_SIZE = 2, 
+          BOARD_STATE_ROWS_COUNT = 3,
+          BOARD_STATE_COLS_COUNT = 3,
+          BOARD_STATE_CELL_EMPTY = 0,
+          BOARD_STATE_CELL_O = 0,
+          BOARD_STATE_CELL_X = 0;
 
 module sprites(
   input wire [1:0] shape_id,
@@ -81,6 +89,57 @@ module btn_handler(
   end
 endmodule
 
+module win_checker(
+  input wire [3*3*2-1:0] board_state,
+  output wire [1:0] winner
+);
+  parameter size_t = 3;
+  parameter winning_line_length = 3;
+  parameter possible_winning_lines_count = 8;
+
+  reg [possible_winning_lines_count*(winning_line_length*size_t*2)-1:0] possible_winning_lines = {
+          // x       // y         // x       // y         // x       // y
+    {{size_t'd0, size_t'd0}, {size_t'd1, size_t'd0}, {size_t'd2, size_t'd0}},
+    {{size_t'd0, size_t'd0}, {size_t'd1, size_t'd1}, {size_t'd2, size_t'd2}},
+    {{size_t'd0, size_t'd0}, {size_t'd0, size_t'd1}, {size_t'd0, size_t'd2}},
+    {{size_t'd2, size_t'd0}, {size_t'd2, size_t'd1}, {size_t'd2, size_t'd2}},
+    {{size_t'd0, size_t'd2}, {size_t'd1, size_t'd2}, {size_t'd2, size_t'd2}},
+    {{size_t'd0, size_t'd2}, {size_t'd1, size_t'd1}, {size_t'd2, size_t'd0}},
+    {{size_t'd1, size_t'd0}, {size_t'd1, size_t'd1}, {size_t'd1, size_t'd2}},
+    {{size_t'd0, size_t'd1}, {size_t'd1, size_t'd1}, {size_t'd2, size_t'd1}}
+  };
+
+  reg [1:0] result = 0;
+  reg [(winning_line_length*size_t*2)-1:0] winning_line_cells = 0;
+  assign winner = result;
+
+  function three_in_row_check;
+    input [(winning_line_length*size_t*2)-1:0] line_cells_xy;
+    begin
+      // cell_index = (y*BOARD_STATE_COLS_COUNT+x)*BOARD_STATE_CELL_SIZE;
+      if(board_state[(line_cells_xy[0*size_t+:size_t]*BOARD_STATE_COLS_COUNT+line_cells_xy[1*size_t+:size_t])*BOARD_STATE_CELL_SIZE+:BOARD_STATE_CELL_SIZE])begin
+        three_in_row_check =  board_state[(line_cells_xy[0*size_t+:size_t]*BOARD_STATE_COLS_COUNT+line_cells_xy[1*size_t+:size_t])*BOARD_STATE_CELL_SIZE+:BOARD_STATE_CELL_SIZE] == board_state[(line_cells_xy[2*size_t+:size_t]*BOARD_STATE_COLS_COUNT+line_cells_xy[3*size_t+:size_t])*BOARD_STATE_CELL_SIZE+:BOARD_STATE_CELL_SIZE]
+                              && board_state[(line_cells_xy[2*size_t+:size_t]*BOARD_STATE_COLS_COUNT+line_cells_xy[3*size_t+:size_t])*BOARD_STATE_CELL_SIZE+:BOARD_STATE_CELL_SIZE] == board_state[(line_cells_xy[4*size_t+:size_t]*BOARD_STATE_COLS_COUNT+line_cells_xy[5*size_t+:size_t])*BOARD_STATE_CELL_SIZE+:BOARD_STATE_CELL_SIZE];
+      end
+      else begin
+        three_in_row_check = 0;
+      end
+    end 
+  endfunction
+
+  always @(*)begin:check_winner_block
+    integer i;
+    integer line_start_index;
+    result <= 0;
+    for(i=0;i<possible_winning_lines_count;i=i+1)begin
+      line_start_index = i * winning_line_length*(size_t*2);
+      if(three_in_row_check(possible_winning_lines[line_start_index+:winning_line_length*(size_t*2)]))begin
+        result <= board_state[(possible_winning_lines[line_start_index+0*size_t+:size_t]*BOARD_STATE_COLS_COUNT+possible_winning_lines[line_start_index+1*size_t+:size_t])*BOARD_STATE_CELL_SIZE+:BOARD_STATE_CELL_SIZE];
+      end
+    end
+  end
+endmodule
+
 module wokwi (
   input wire btn_up,
   input wire btn_right,
@@ -91,6 +150,8 @@ module wokwi (
   input wire CLK_IN,
   output reg OUT,
   output reg CS,
+  output wire o_won,
+  output wire x_won,
   output reg CLK
 );
 
@@ -165,9 +226,11 @@ module wokwi (
   reg [7:0] selected_matrix_x = 0;
   reg [7:0] selected_matrix_y = CHAINED_MATRICES_Y_COUNT - 1;
 
-  
+  wire end_game = 0;
+  assign end_game = o_won || x_won;
+
   reg [MATRIX_DATA_LENGTH*CHAINED_MATRICES_COUNT-1 :0] matrix_data = 0;
-  reg [3*3*2-1:0] board_state = {
+  reg [BOARD_STATE_ROWS_COUNT*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE-1:0] board_state = {
     2'b00, 2'b00, 2'b00,
     2'b00, 2'b00, 2'b00,
     2'b00, 2'b00, 2'b00
@@ -215,6 +278,11 @@ module wokwi (
     .clk(CLK_IN),
     .btn(btn_restart),
     .state(btn_restart_state)
+  );
+
+  win_checker u_win_checker(
+    .board_state(board_state),
+    .winner({x_won, o_won})
   );
 
   always @(posedge CLK_IN) 
