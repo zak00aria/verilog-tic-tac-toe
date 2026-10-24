@@ -16,7 +16,7 @@ A work-in-progress tic-tac-toe game written in Verilog and built in the online W
     - [x] Handle restart button
 - [ ] Detect win state
     - [x] Determine whether X or O won
-    - [ ] Ignore all inputs, allow only a game restart
+    - [x] Ignore all inputs, allow only a game restart
     - [ ] Highlight the winning line (by making it blink)
 - [ ] Implement infinite Tic-Tac-Toe
     - [ ] After a player has made 3 moves, remove their oldest move when they make their next move

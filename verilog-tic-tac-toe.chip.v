@@ -226,9 +226,9 @@ module wokwi (
   reg [7:0] selected_matrix_x = 0;
   reg [7:0] selected_matrix_y = CHAINED_MATRICES_Y_COUNT - 1;
 
-  wire end_game = 0;
+  wire end_game;
   assign end_game = o_won || x_won;
-
+  
   reg [MATRIX_DATA_LENGTH*CHAINED_MATRICES_COUNT-1 :0] matrix_data = 0;
   reg [BOARD_STATE_ROWS_COUNT*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE-1:0] board_state = {
     2'b00, 2'b00, 2'b00,
@@ -295,22 +295,24 @@ module wokwi (
     end
     
     if(NEXT_ACTION==0)begin
-      if(btn_up_state)begin
-        NEXT_ACTION <= ACTION_MOVE_UP;
+      if(!end_game)begin
+        if(btn_up_state)begin
+          NEXT_ACTION <= ACTION_MOVE_UP;
+        end
+        else if(btn_right_state)begin
+          NEXT_ACTION <= ACTION_MOVE_RIGHT;
+        end
+        else if(btn_down_state)begin
+          NEXT_ACTION <= ACTION_MOVE_DOWN;
+        end
+        else if(btn_left_state)begin
+          NEXT_ACTION <= ACTION_MOVE_LEFT;
+        end
+        else if(btn_select_state)begin
+          NEXT_ACTION <= ACTION_SELECT;
+        end
       end
-      else if(btn_right_state)begin
-        NEXT_ACTION <= ACTION_MOVE_RIGHT;
-      end
-      else if(btn_down_state)begin
-        NEXT_ACTION <= ACTION_MOVE_DOWN;
-      end
-      else if(btn_left_state)begin
-        NEXT_ACTION <= ACTION_MOVE_LEFT;
-      end
-      else if(btn_select_state)begin
-        NEXT_ACTION <= ACTION_SELECT;
-      end
-      else if(btn_restart_state)begin
+      if(btn_restart_state)begin
         NEXT_ACTION <= ACTION_RESTART;
       end
     end
@@ -489,17 +491,19 @@ module wokwi (
               MAIN_NEXT_STATE <= REFRESH_DISPLAY;
               DATA_LINE_NEXT_STATE <= START_SENDING;
               UPDATE_DISPLAY_CURRENT_STEP <= CLEAR_DISPLAY;
-              for(row_index=0; row_index<MATRIX_ROWS_COUNT; row_index=row_index+1)begin
-                row_offset = (MATRIX_DATA_LENGTH*(CHAINED_MATRICES_X_COUNT*selected_cell_y)) /*screen rows to skip*/
-                            + (MATRIX_COLS_COUNT*selected_cell_x) /*columns to skip (in current row)*/
-                            + (row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT);
-                if(blink_timer < (1<<(BLINK_TIMER_SIZE-2)))begin
-                  matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
-                                                                            & (~selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
-                end
-                else begin
-                  matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
-                                                                            | (selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+              if(!end_game)begin
+                for(row_index=0; row_index<MATRIX_ROWS_COUNT; row_index=row_index+1)begin
+                  row_offset = (MATRIX_DATA_LENGTH*(CHAINED_MATRICES_X_COUNT*selected_cell_y)) /*screen rows to skip*/
+                              + (MATRIX_COLS_COUNT*selected_cell_x) /*columns to skip (in current row)*/
+                              + (row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT);
+                  if(blink_timer < (1<<(BLINK_TIMER_SIZE-2)))begin
+                    matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
+                                                                              & (~selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+                  end
+                  else begin
+                    matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
+                                                                              | (selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
+                  end
                 end
               end
             end
