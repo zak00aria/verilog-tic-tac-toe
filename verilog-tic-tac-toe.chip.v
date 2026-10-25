@@ -493,6 +493,11 @@ module wokwi (
                 0:begin
                   insert_x <= 1;
                   board_state[cell_index +: BOARD_STATE_CELL_SIZE] <= X_SPRITE;
+                  // remove oldest x move
+                  if(x_reached_3_moves)begin
+                    oldest_cell_index = oldest_x_move[0+:2]*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE + BOARD_STATE_CELL_SIZE*oldest_x_move[2+:2];
+                    board_state[oldest_cell_index+:BOARD_STATE_CELL_SIZE] <= 0;
+                  end
                   // mark oldest o move to be removed in next o turn
                   if(o_reached_3_moves)begin
                     oldest_cell_index = oldest_o_move[0+:2]*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE + BOARD_STATE_CELL_SIZE*oldest_o_move[2+:2];
@@ -502,6 +507,11 @@ module wokwi (
                 1:begin
                   insert_o <= 1;
                   board_state[cell_index +: BOARD_STATE_CELL_SIZE] <= O_SPRITE;
+                  // remove oldest o move
+                  if(o_reached_3_moves)begin
+                    oldest_cell_index = oldest_o_move[0+:2]*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE + BOARD_STATE_CELL_SIZE*oldest_o_move[2+:2];
+                    board_state[oldest_cell_index+:BOARD_STATE_CELL_SIZE] <= 0;
+                  end
                   // mark oldest x move to be removed in next x turn
                   if(x_reached_3_moves)begin
                     oldest_cell_index = oldest_x_move[0+:2]*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE + BOARD_STATE_CELL_SIZE*oldest_x_move[2+:2];
@@ -563,7 +573,7 @@ module wokwi (
                               + (MATRIX_COLS_COUNT*draw_xo_selected_cell_x) /*columns to skip (in current row)*/
                               + (row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT);
                   if(((!end_game && (cell_value == OLD_X_SPRITE || cell_value == OLD_O_SPRITE)) /*if cell is marked to be removed*/
-                      || (end_game && does_cell_belong_to_winning_line({draw_xo_selected_cell_x, draw_xo_selected_cell_y}, winning_line)))
+                     || (end_game && does_cell_belong_to_winning_line({draw_xo_selected_cell_x, draw_xo_selected_cell_y}, winning_line)))
                      && blink_timer < (1<<(BLINK_TIMER_SIZE-2))
                   )begin
                     // make cell blinks

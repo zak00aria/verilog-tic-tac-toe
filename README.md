@@ -18,9 +18,9 @@ A work-in-progress tic-tac-toe game written in Verilog and built in the online W
     - [x] Determine whether X or O won
     - [x] Ignore all inputs, allow only a game restart
     - [x] Highlight the winning line (by making it blink)
-- [ ] Implement infinite Tic-Tac-Toe
+- [x] Implement infinite Tic-Tac-Toe
     - [x] Add a blinking visual effect to the cell that will be removed in the next turn
-    - [ ] After a player has made 3 moves, remove their oldest move when they make their next move
+    - [x] After a player has made 3 moves, remove their oldest move when they make their next move
 
 ## Simulation
 
