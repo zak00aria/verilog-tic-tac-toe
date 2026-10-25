@@ -1,8 +1,10 @@
 parameter CLK_SPEED = 20*1000;// Hz
 parameter O_SPRITE = 1, 
           X_SPRITE = 2, 
-          SELECTED_CELL_SPRITE = 3;
-parameter BOARD_STATE_CELL_SIZE = 2, 
+          SELECTED_CELL_SPRITE = 3,
+          OLD_O_SPRITE = 4,
+          OLD_X_SPRITE= 5;
+parameter BOARD_STATE_CELL_SIZE = 3, 
           BOARD_STATE_ROWS_COUNT = 3,
           BOARD_STATE_COLS_COUNT = 3,
           BOARD_STATE_CELL_EMPTY = 0,
@@ -10,7 +12,7 @@ parameter BOARD_STATE_CELL_SIZE = 2,
           BOARD_STATE_CELL_X = 0;
 
 module sprites(
-  input wire [1:0] shape_id,
+  input wire [BOARD_STATE_CELL_SIZE-1:0] shape_id,
   output wire [8*8-1:0] shape_data
 );
 reg [8*8-1:0] selected_shape_data = 0;
@@ -19,7 +21,7 @@ assign shape_data = selected_shape_data;
 
 always @* begin
     case(shape_id)
-      O_SPRITE:begin
+      O_SPRITE, OLD_O_SPRITE:begin
         selected_shape_data <= {
           {8'b00000000},
           {8'b00000000},
@@ -31,7 +33,7 @@ always @* begin
           {8'b00000000}
         };
       end
-      X_SPRITE:begin
+      X_SPRITE, OLD_X_SPRITE:begin
         selected_shape_data <= {
           {8'b00000000},
           {8'b00000000},
@@ -93,7 +95,7 @@ endmodule
 parameter winning_line_length = 3;
 parameter possible_winning_lines_count = 8;
 module win_checker(
-  input wire [3*3*2-1:0] board_state,
+  input wire [BOARD_STATE_ROWS_COUNT*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE-1:0] board_state,
   output wire [1:0] winner,
   output wire [(winning_line_length*2*2)-1:0] winning_line
 );
@@ -141,6 +143,47 @@ module win_checker(
         result <= board_state[(possible_winning_lines[line_start_index+0*size_t+:size_t]*BOARD_STATE_COLS_COUNT+possible_winning_lines[line_start_index+1*size_t+:size_t])*BOARD_STATE_CELL_SIZE+:BOARD_STATE_CELL_SIZE];
         winning_line_cells <= possible_winning_lines[line_start_index +:winning_line_length*(size_t*2)];
       end
+    end
+  end
+endmodule
+
+module moves_history(
+  input wire [2*2-1:0] new_move,
+  input wire insert,
+  input wire reset,
+  output wire is_full,
+  output wire [2*2-1:0] oldest_move
+);
+  parameter LENGTH=3;
+  reg [LENGTH*2*2-1:0] history = 0;
+  reg [2:0] oldest_move_index = 0;
+  reg clk = 0;
+
+  assign is_full = oldest_move_index >= LENGTH;
+  assign oldest_move = history[(LENGTH-1)*2*2+:2*2];
+
+  integer i;
+  always @(insert)begin
+    if(clk != insert)begin
+      clk <= insert;
+      if(insert)begin
+        if(oldest_move_index < LENGTH)begin
+          oldest_move_index <= oldest_move_index+1;
+        end
+        // shift history content to the left
+        history[0+:2*2] <= new_move;
+        for(i=1;i<LENGTH;i=i+1)begin
+          history[i*2*2+:2*2] <= history[(i-1)*2*2+:2*2];
+        end
+      end
+    end
+  end
+
+  always @(reset)begin
+    if(reset)begin
+      history <= 0;
+      oldest_move <= 0;
+      oldest_move_index <= 0;
     end
   end
 endmodule
@@ -247,13 +290,13 @@ module wokwi (
   
   reg [MATRIX_DATA_LENGTH*CHAINED_MATRICES_COUNT-1 :0] matrix_data = 0;
   reg [BOARD_STATE_ROWS_COUNT*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE-1:0] board_state = {
-    2'b00, 2'b00, 2'b00,
-    2'b00, 2'b00, 2'b00,
-    2'b00, 2'b00, 2'b00
+    BOARD_STATE_CELL_SIZE'b000, BOARD_STATE_CELL_SIZE'b000, BOARD_STATE_CELL_SIZE'b000,
+    BOARD_STATE_CELL_SIZE'b000, BOARD_STATE_CELL_SIZE'b000, BOARD_STATE_CELL_SIZE'b000,
+    BOARD_STATE_CELL_SIZE'b000, BOARD_STATE_CELL_SIZE'b000, BOARD_STATE_CELL_SIZE'b000
   };
 
   wire [8*8-1:0] selected_shape_data;
-  reg [1:0] selected_shape;
+  reg [BOARD_STATE_CELL_SIZE-1:0] selected_shape;
   sprites u_sprites(
     .shape_id(selected_shape),
     .shape_data(selected_shape_data)
@@ -300,6 +343,28 @@ module wokwi (
     .board_state(board_state),
     .winner({x_won, o_won}),
     .winning_line(winning_line)
+  );
+
+  wire [2*2-1:0] oldest_x_move;
+  wire x_reached_3_moves;
+  reg insert_x = 0;
+  moves_history x_moves_history(
+    .new_move({selected_cell_x, selected_cell_y}),
+    .insert(insert_x),
+    .reset(NEXT_ACTION==ACTION_RESTART),
+    .is_full(x_reached_3_moves),
+    .oldest_move(oldest_x_move)
+  );
+
+  wire [2*2-1:0] oldest_o_move;
+  wire o_reached_3_moves;
+  reg insert_x = 0;
+  moves_history o_moves_history(
+    .new_move({selected_cell_x, selected_cell_y}),
+    .insert(insert_o),
+    .reset(NEXT_ACTION==ACTION_RESTART),
+    .is_full(o_reached_3_moves),
+    .oldest_move(oldest_o_move)
   );
 
   always @(posedge CLK_IN) 
@@ -395,7 +460,9 @@ module wokwi (
         endcase
       end
       HANDLE_USER_INPUT:begin:handle_user_inputs_block
-        integer cell_index, cell_value;
+        integer cell_index, cell_value, oldest_cell_index;
+        insert_x<=0;
+        insert_o<=0;
         case(NEXT_ACTION)
           ACTION_MOVE_UP:begin
             if(selected_cell_y>0)begin
@@ -418,16 +485,28 @@ module wokwi (
             end
           end
           ACTION_SELECT:begin
-            cell_index = selected_cell_y*3*2
-                          +2*selected_cell_x;
-            cell_value = board_state[cell_index +: 2];
+            cell_index = selected_cell_y*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE
+                          +BOARD_STATE_CELL_SIZE*selected_cell_x;
+            cell_value = board_state[cell_index +: BOARD_STATE_CELL_SIZE];
             if(cell_value==0)begin
               case(current_turn)
                 0:begin
-                  board_state[cell_index +: 2] = X_SPRITE;
+                  insert_x <= 1;
+                  board_state[cell_index +: BOARD_STATE_CELL_SIZE] <= X_SPRITE;
+                  // mark oldest o move to be removed in next o turn
+                  if(o_reached_3_moves)begin
+                    oldest_cell_index = oldest_o_move[0+:2]*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE + BOARD_STATE_CELL_SIZE*oldest_o_move[2+:2];
+                    board_state[oldest_cell_index+:BOARD_STATE_CELL_SIZE] <= OLD_O_SPRITE;
+                  end
                 end
                 1:begin
-                  board_state[cell_index +: 2] = O_SPRITE;
+                  insert_o <= 1;
+                  board_state[cell_index +: BOARD_STATE_CELL_SIZE] <= O_SPRITE;
+                  // mark oldest x move to be removed in next x turn
+                  if(x_reached_3_moves)begin
+                    oldest_cell_index = oldest_x_move[0+:2]*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE + BOARD_STATE_CELL_SIZE*oldest_x_move[2+:2];
+                    board_state[oldest_cell_index+:BOARD_STATE_CELL_SIZE] <= OLD_X_SPRITE;
+                  end
                 end
               endcase
               current_turn <= current_turn ^ 1;
@@ -473,19 +552,21 @@ module wokwi (
             integer cell_value;
             integer row_offset;
             integer row_index;
+            integer cell_belong_to_winning_line;
             if(draw_xo_selected_cell_y<=2)begin
-              cell_value = board_state[draw_xo_selected_cell_y*3*2
-                                      +2*draw_xo_selected_cell_x +: 2];
+              cell_value = board_state[draw_xo_selected_cell_y*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE
+                                      +BOARD_STATE_CELL_SIZE*draw_xo_selected_cell_x +: BOARD_STATE_CELL_SIZE];
               selected_shape <= cell_value;
               if(cell_value==selected_shape)begin
                 for(row_index=0; row_index<MATRIX_ROWS_COUNT; row_index=row_index+1)begin
                   row_offset = (MATRIX_DATA_LENGTH*(CHAINED_MATRICES_X_COUNT*draw_xo_selected_cell_y)) /*screen rows to skip*/
                               + (MATRIX_COLS_COUNT*draw_xo_selected_cell_x) /*columns to skip (in current row)*/
                               + (row_index*CHAINED_MATRICES_X_COUNT*MATRIX_COLS_COUNT);
-                  if(end_game
-                     && does_cell_belong_to_winning_line({draw_xo_selected_cell_x, draw_xo_selected_cell_y}, winning_line) 
+                  if(((!end_game && (cell_value == OLD_X_SPRITE || cell_value == OLD_O_SPRITE)) /*if cell is marked to be removed*/
+                      || (end_game && does_cell_belong_to_winning_line({draw_xo_selected_cell_x, draw_xo_selected_cell_y}, winning_line)))
                      && blink_timer < (1<<(BLINK_TIMER_SIZE-2))
                   )begin
+                    // make cell blinks
                     matrix_data[row_offset +: MATRIX_COLS_COUNT] <= matrix_data[row_offset +: MATRIX_COLS_COUNT] 
                                                                     & ~(selected_shape_data[row_index*MATRIX_COLS_COUNT +: MATRIX_COLS_COUNT]);
                   end
