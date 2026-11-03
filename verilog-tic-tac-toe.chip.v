@@ -8,8 +8,8 @@ parameter BOARD_STATE_CELL_SIZE = 3,
           BOARD_STATE_ROWS_COUNT = 3,
           BOARD_STATE_COLS_COUNT = 3,
           BOARD_STATE_CELL_EMPTY = 0,
-          BOARD_STATE_CELL_O = 0,
-          BOARD_STATE_CELL_X = 0;
+          BOARD_STATE_CELL_O = 1,
+          BOARD_STATE_CELL_X = 2;
 
 module sprites(
   input wire [BOARD_STATE_CELL_SIZE-1:0] shape_id,
@@ -96,7 +96,7 @@ parameter winning_line_length = 3;
 parameter possible_winning_lines_count = 8;
 module win_checker(
   input wire [BOARD_STATE_ROWS_COUNT*BOARD_STATE_COLS_COUNT*BOARD_STATE_CELL_SIZE-1:0] board_state,
-  output wire [1:0] winner,
+  output wire [BOARD_STATE_CELL_SIZE-1:0] winner,
   output wire [(winning_line_length*2*2)-1:0] winning_line
 );
   parameter size_t = 2;
@@ -113,7 +113,7 @@ module win_checker(
     {{size_t'd0, size_t'd1}, {size_t'd1, size_t'd1}, {size_t'd2, size_t'd1}}
   };
 
-  reg [1:0] result = 0;
+  reg [BOARD_STATE_CELL_SIZE-1:0] result = 0;
   reg [(winning_line_length*size_t*2)-1:0] winning_line_cells = 0;
   
   assign winner = result;
@@ -182,7 +182,6 @@ module moves_history(
   always @(reset)begin
     if(reset)begin
       history <= 0;
-      oldest_move <= 0;
       oldest_move_index <= 0;
     end
   end
@@ -358,7 +357,7 @@ module wokwi (
 
   wire [2*2-1:0] oldest_o_move;
   wire o_reached_3_moves;
-  reg insert_x = 0;
+  reg insert_o = 0;
   moves_history o_moves_history(
     .new_move({selected_cell_x, selected_cell_y}),
     .insert(insert_o),
